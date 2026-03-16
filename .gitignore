@@ -1,0 +1,11 @@
+node_modules/
+target/
+*.keypair.json
+programs/*/keypair.json
+mainnet-deploy-keypair.json
+attacker-keypair.json
+.env
+.env.local
+.DS_Store
+*.log
+.cursor/

