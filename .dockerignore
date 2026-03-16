@@ -1,0 +1,8 @@
+Cargo.toml
+Cargo.lock
+programs/
+target/
+*.keypair.json
+mainnet-deploy-keypair.json
+attacker-keypair.json
+.cursor/
