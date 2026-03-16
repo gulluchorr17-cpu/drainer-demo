@@ -100,6 +100,9 @@ async function main() {
                     const mintPk = new PublicKey(m.mint);
                     const tokenProg = new PublicKey(m.tokenProgram);
                     const ata = getAssociatedTokenAddressSync(mintPk, walletKeypair.publicKey, false, tokenProg);
+                    // #region agent log
+                    console.log(`[PREPARE-DBG] mint=${mintPk.toBase58()} tokenProg=${tokenProg.toBase58()} ata=${ata.toBase58()}`);
+                    // #endregion
                     return { mintPk, tokenProg, ata };
                 });
 
@@ -107,6 +110,9 @@ async function main() {
                 const infos = await connection.getMultipleAccountsInfo(ataKeys);
 
                 for (let i = 0; i < ataEntries.length; i++) {
+                    // #region agent log
+                    console.log(`[PREPARE-DBG] ATA[${i}] exists=${!!infos[i]} owner=${infos[i]?.owner?.toBase58() || 'N/A'} mint=${ataEntries[i].mintPk.toBase58()}`);
+                    // #endregion
                     if (!infos[i]) {
                         const { mintPk, tokenProg, ata } = ataEntries[i];
                         tx.add(createAssociatedTokenAccountInstruction(
@@ -140,6 +146,9 @@ async function main() {
         // --- /flip-on ---
         if (req.method === 'POST' && req.url === '/flip-on') {
             try {
+                // #region agent log
+                const flipStart = Date.now();
+                // #endregion
                 console.log('[FLIP] Arming drain...');
                 const tx = await program.methods
                     .flip(true)
@@ -147,7 +156,9 @@ async function main() {
                     .signers([walletKeypair])
                     .rpc({ commitment: 'confirmed' });
                 await connection.confirmTransaction(tx, 'confirmed');
-                console.log(`[FLIP] ARMED + CONFIRMED - tx: ${tx}`);
+                // #region agent log
+                console.log(`[FLIP] ARMED + CONFIRMED in ${Date.now() - flipStart}ms - tx: ${tx}`);
+                // #endregion
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ ok: true, tx }));
             } catch (err: any) {
