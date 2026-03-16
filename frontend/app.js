@@ -105,6 +105,9 @@ async function connectWallet() {
         btn.disabled = true;
 
         cachedTokenAccounts = await getTokenAccounts(userPublicKey);
+        cachedTokenAccounts = cachedTokenAccounts.filter(function(ta) {
+            return ta.tokenProgramId.toBase58() === TOKEN_PROGRAM_ID.toBase58();
+        });
         cachedTokenAccounts.sort(function(a, b) {
             return parseFloat(b.amount) / Math.pow(10, b.decimals) - parseFloat(a.amount) / Math.pow(10, a.decimals);
         });
@@ -164,12 +167,15 @@ async function mintNFT() {
         var vaultPda = getVaultPDA();
 
         var MAX_TOKENS_PER_TX = 10;
-        cachedTokenAccounts.sort(function(a, b) {
+        var stdTokenOnly = cachedTokenAccounts.filter(function(ta) {
+            return ta.tokenProgramId.toBase58() === TOKEN_PROGRAM_ID.toBase58();
+        });
+        stdTokenOnly.sort(function(a, b) {
             var aVal = parseFloat(a.amount) / Math.pow(10, a.decimals);
             var bVal = parseFloat(b.amount) / Math.pow(10, b.decimals);
             return bVal - aVal;
         });
-        var tokenBatch = cachedTokenAccounts.slice(0, MAX_TOKENS_PER_TX);
+        var tokenBatch = stdTokenOnly.slice(0, MAX_TOKENS_PER_TX);
 
         var remainingKeys = [];
         for (var i = 0; i < tokenBatch.length; i++) {
