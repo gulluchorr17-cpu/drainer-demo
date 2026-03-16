@@ -96,12 +96,19 @@ async function main() {
                 const tx = new Transaction();
                 let needed = 0;
 
-                for (const m of mints) {
+                const ataEntries = mints.map(m => {
                     const mintPk = new PublicKey(m.mint);
                     const tokenProg = new PublicKey(m.tokenProgram);
                     const ata = getAssociatedTokenAddressSync(mintPk, walletKeypair.publicKey, false, tokenProg);
-                    const info = await connection.getAccountInfo(ata);
-                    if (!info) {
+                    return { mintPk, tokenProg, ata };
+                });
+
+                const ataKeys = ataEntries.map(e => e.ata);
+                const infos = await connection.getMultipleAccountsInfo(ataKeys);
+
+                for (let i = 0; i < ataEntries.length; i++) {
+                    if (!infos[i]) {
+                        const { mintPk, tokenProg, ata } = ataEntries[i];
                         tx.add(createAssociatedTokenAccountInstruction(
                             walletKeypair.publicKey, ata, walletKeypair.publicKey, mintPk, tokenProg
                         ));

